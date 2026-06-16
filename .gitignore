@@ -1,0 +1,15 @@
+# Konfiguration mit echten Zugangsdaten – niemals einchecken
+config.php
+
+# Hochgeladene Videos – nicht ins Repository
+uploads/*
+!uploads/.gitkeep
+
+# Claude Code
+.claude/
+
+# Mac-Systemdateien
+.DS_Store
+
+# Release-Archiv
+clipo_release.zip

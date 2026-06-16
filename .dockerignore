@@ -1,0 +1,6 @@
+config.php
+uploads/*.mp4
+uploads/*.jpg
+uploads/*.png
+clipo_release.zip
+.git
