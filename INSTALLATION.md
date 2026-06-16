@@ -6,7 +6,7 @@ Diese Anleitung erklärt Schritt für Schritt, wie du Clipo auf deinem Computer 
 
 ## Was du bekommst
 
-Ein ZIP-Archiv mit der kompletten Clipo-App. Clipo läuft in **Docker** – das bedeutet: du installierst keine Datenbank, keinen Webserver oder PHP auf deinem Computer. Docker erledigt das alles automatisch, abgeschottet vom Rest deines Systems.
+Zugang zur Clipo-App – entweder als ZIP-Datei oder über einen GitHub-Link. Clipo läuft in **Docker** – das bedeutet: du installierst keine Datenbank, keinen Webserver oder PHP auf deinem Computer. Docker erledigt das alles automatisch, abgeschottet vom Rest deines Systems.
 
 ---
 
@@ -37,13 +37,26 @@ Docker Desktop ist eine kostenlose App, die du einmalig installieren musst.
 
 ---
 
-## Schritt 2: ZIP-Datei entpacken
+## Schritt 2: Clipo herunterladen
 
+**Variante A – per ZIP-Datei:**
 1. Lege die ZIP-Datei an einen Ort deiner Wahl, z.B. deinen Schreibtisch oder den Dokumente-Ordner
 2. Entpacke die ZIP-Datei:
    - **Mac:** Doppelklick auf die ZIP-Datei
    - **Windows:** Rechtsklick → „Alle extrahieren"
 3. Du erhältst einen Ordner namens `clipo`
+
+**Variante B – per GitHub (empfohlen, bekommst automatisch Updates):**
+1. Öffne ein Terminal (wie in Schritt 3 beschrieben)
+2. Navigiere zu dem Ordner wo du Clipo ablegen möchtest, z.B.:
+   ```
+   cd ~/Documents
+   ```
+3. Lade Clipo herunter:
+   ```
+   git clone https://github.com/hhochwald-fmb/clipo.git
+   ```
+4. Du erhältst einen Ordner namens `clipo`
 
 ---
 
@@ -132,6 +145,24 @@ docker compose up -d
 ```
 docker compose down
 ```
+
+---
+
+## Updates erhalten (nur bei GitHub-Installation)
+
+Wenn eine neue Version von Clipo verfügbar ist, reichen drei Befehle:
+
+1. Terminal im `clipo`-Ordner öffnen (wie in Schritt 3)
+2. Neue Version herunterladen:
+```
+git pull
+```
+3. App neu starten mit der neuen Version:
+```
+docker compose up -d --build
+```
+
+Die Datenbank und deine Einstellungen bleiben dabei erhalten.
 
 ---
 
