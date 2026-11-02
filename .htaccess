@@ -1,0 +1,13 @@
+# Interne Dateien nicht über den Browser ausliefern.
+# Wichtig, wenn Clipo per "git clone" auf dem Server liegt.
+
+# Git-Ordner und Dotfiles (.git/, .gitignore, .dockerignore, ...)
+RedirectMatch 404 /\.(git|docker|claude)
+
+# Doku, Docker-Dateien und Vorlagen
+<FilesMatch "(\.md$|^Dockerfile$|^docker-compose\.ya?ml$|^config\.sample\.php$)">
+    Require all denied
+</FilesMatch>
+
+# includes/ enthält nur Bausteine, die von anderen Seiten geladen werden
+RedirectMatch 404 ^(.*/)?includes/
