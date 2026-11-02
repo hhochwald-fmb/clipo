@@ -13,6 +13,16 @@ $admin_user = 'admin';
 $message = '';
 $error = '';
 
+// Docker: Zugangsdaten kommen aus den Umgebungsvariablen (docker-compose.yml),
+// config.php wird dann nicht geschrieben - sie ginge beim Neubau des Containers verloren.
+$use_env = !file_exists($config_file) && getenv('DB_HOST') !== false;
+if ($use_env) {
+    $db_host = getenv('DB_HOST');
+    $db_name = getenv('DB_NAME') ?: $db_name;
+    $db_user = getenv('DB_USER') ?: $db_user;
+    $db_pass = getenv('DB_PASS') ?: '';
+}
+
 if (file_exists($config_file)) {
     // Try to load existing config
     $content = file_get_contents($config_file);
@@ -111,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // Write config.php
+            // Write config.php (nicht bei Docker, dort gelten die Umgebungsvariablen)
             $config_content = "<?php\n";
             $config_content .= "define('DB_HOST', " . var_export($db_host, true) . ");\n";
             $config_content .= "define('DB_NAME', " . var_export($db_name, true) . ");\n";
@@ -119,9 +129,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $config_content .= "define('DB_PASS', " . var_export($db_pass, true) . ");\n";
             $config_content .= "define('APP_NAME', 'Clipo');\n";
             $config_content .= "define('UPLOAD_DIR', __DIR__ . '/uploads/');\n";
-            $config_content .= "define('DB_VERSION', '1.4');\n"; // Updated to 1.4
-            
-            if (!file_put_contents($config_file, $config_content)) {
+            $config_content .= "define('DB_VERSION', '1.5');\n";
+
+            if (!$use_env && !file_put_contents($config_file, $config_content)) {
                 $error = "Konnte config.php nicht schreiben. Bitte prüfe die Schreibrechte im Clipo-Hauptverzeichnis.";
             }
 

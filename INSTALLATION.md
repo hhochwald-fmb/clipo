@@ -105,7 +105,7 @@ Wenn das erscheint, läuft alles.
 
 1. Öffne deinen Browser (Chrome, Firefox, Safari…)
 2. Gehe zu: **http://localhost:8080/setup.php**
-3. Das Setup-Formular erscheint. Trage folgendes ein:
+3. Das Setup-Formular erscheint. Die Datenbank-Felder sind bereits ausgefüllt – prüfe sie und ergänze den Admin-Account:
 
 | Feld | Wert |
 |---|---|
@@ -162,7 +162,7 @@ git pull
 docker compose up -d --build
 ```
 
-Die Datenbank und deine Einstellungen bleiben dabei erhalten.
+Die Datenbank und deine Einstellungen bleiben dabei erhalten – das Setup musst du nicht erneut aufrufen.
 
 ---
 
