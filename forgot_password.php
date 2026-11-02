@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
                     $reset_link = $scheme . "://" . $host . $base_path . "/reset_password.php?token=" . urlencode($token);
                 } else {
-                    $error = "Konfigurationsfehler: APP_URL in config.php setzen.";
+                    error_log("Clipo: Passwort-Reset nicht möglich - APP_URL in config.php setzen.");
                 }
             }
 
@@ -53,17 +53,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $headers .= "Content-Type: text/plain; charset=utf-8\r\n";
 
                 // The 5th parameter '-f' is crucial for many hosters like Mittwald
-                if (mail($to, $subject, $msg, $headers, "-f " . $from)) {
-                    $message = "Ein Link zum Zuruecksetzen wurde an deine E-Mail gesendet.";
-                } else {
-                    // Fallback for local dev or misconfigured mail()
-                    $error = "E-Mail konnte nicht gesendet werden. (Lokales Setup?)\nLink: " . $reset_link;
+                if (!mail($to, $subject, $msg, $headers, "-f " . $from)) {
+                    // Link nie im Browser anzeigen - sonst kann jeder fremde Konten übernehmen.
+                    // Lokal (Docker) steht er im Log: docker compose logs -f app
+                    error_log("Clipo: Reset-Mail an " . $to . " fehlgeschlagen. Link: " . $reset_link);
                 }
             }
-        } else {
-            // Standard security: dont reveal if email exists
-            $message = "Sollte die Adresse im System sein, wurde ein Link versendet.";
         }
+        // Immer dieselbe Meldung - verrät nicht, ob die Adresse existiert
+        $message = "Sollte die Adresse im System sein, wurde ein Link versendet.";
     }
 }
 

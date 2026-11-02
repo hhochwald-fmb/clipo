@@ -48,10 +48,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->exec("CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(50) NOT NULL UNIQUE,
+                email VARCHAR(255),
                 password VARCHAR(255) NOT NULL,
                 display_name VARCHAR(100),
                 profile_image VARCHAR(255),
                 role ENUM('admin', 'manager') DEFAULT 'manager',
+                reset_token VARCHAR(100),
+                reset_expiry DATETIME,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             ) ENGINE=InnoDB");
 
