@@ -21,7 +21,8 @@ Clipo ist eine schlanke, PHP-basierte Videoplattform für Bildungseinrichtungen.
 3. Rufe `setup.php` in deinem Browser auf (z.B. `deine-domain.de/setup.php`).
 4. Folge den Anweisungen, um die Datenbankverbindung und den Admin-Account einzurichten.
 - **Wichtig:** Der Webserver benötigt Schreibrechte im Clipo-Hauptverzeichnis, um den Ordner `uploads/` zu erstellen. Sollte dies fehlschlagen, erstelle den Ordner `uploads/` bitte manuell und gib ihm Schreibrechte (CHMOD 775 oder 777).
-5. Lösche die `setup.php` nach erfolgreicher Installation aus Sicherheitsgründen.
+5. Danach sperrt sich `setup.php` automatisch: Sobald ein Administrator existiert, ist sie nur noch für angemeldete Admins erreichbar. Wer sie nicht braucht, kann sie trotzdem löschen.
+   - Admin-Passwort vergessen? In der `config.php` `define('CLIPO_SETUP_UNLOCK', true);` ergänzen (Docker: Umgebungsvariable `CLIPO_SETUP_UNLOCK=1`), Setup ausführen, danach wieder entfernen.
 
 ## Update
 Wenn eine neue Version verfügbar ist:

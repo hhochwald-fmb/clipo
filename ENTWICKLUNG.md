@@ -84,4 +84,6 @@ Diese Zugangsdaten gelten nur lokal im Docker-Container und können in `docker-c
 
 Im Docker-Betrieb liest Clipo die Zugangsdaten direkt aus diesen Umgebungsvariablen (`includes/config_loader.php`), es wird keine `config.php` angelegt. Deshalb übersteht die Konfiguration auch `docker compose up -d --build`. Bei einer klassischen Webserver-Installation ohne Docker schreibt `setup.php` wie bisher eine `config.php`.
 
+`setup.php` ist gesperrt, sobald ein Admin existiert – außer man ist als Admin angemeldet. Notfall (Admin-Passwort vergessen): in `docker-compose.yml` beim Service `app` `CLIPO_SETUP_UNLOCK: "1"` ergänzen, `docker compose up -d`, Setup ausführen, Zeile wieder entfernen.
+
 Passwort-Reset-Links landen lokal (ohne Mailserver) im Log: `docker compose logs -f app`

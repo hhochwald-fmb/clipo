@@ -30,7 +30,58 @@ if (file_exists($config_file)) {
     if (preg_match("/define\('DB_NAME', '(.*?)'\);/", $content, $matches)) $db_name = $matches[1];
     if (preg_match("/define\('DB_USER', '(.*?)'\);/", $content, $matches)) $db_user = $matches[1];
     if (preg_match("/define\('DB_PASS', '(.*?)'\);/", $content, $matches)) $db_pass = $matches[1];
-    $message = "Hinweis: Bestehende Konfiguration geladen.";
+}
+
+// Sperre: Sobald ein Admin existiert, ist das Setup nur noch für angemeldete Admins
+// erreichbar. Sonst könnte jeder mit den (oft bekannten) DB-Zugangsdaten das
+// Admin-Passwort neu setzen. Notfall-Entsperrung (Admin-Passwort vergessen):
+// Umgebungsvariable CLIPO_SETUP_UNLOCK=1 bzw. define('CLIPO_SETUP_UNLOCK', true) in config.php.
+function clipoSetupLocked($host, $name, $user, $pass, $config_file) {
+    if ($config_file && file_exists($config_file)) {
+        require_once $config_file;
+    }
+    if (getenv('CLIPO_SETUP_UNLOCK') === '1' || (defined('CLIPO_SETUP_UNLOCK') && CLIPO_SETUP_UNLOCK)) {
+        return false;
+    }
+    try {
+        $pdo = new PDO("mysql:host=$host;dbname=$name;charset=utf8mb4", $user, $pass);
+        $stmt = $pdo->query("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1");
+        $has_admin = (bool)$stmt->fetch();
+    } catch (PDOException $e) {
+        return false; // DB nicht erreichbar oder noch leer -> Setup muss möglich sein
+    }
+    if (!$has_admin) {
+        return false;
+    }
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+    return ($_SESSION['user_role'] ?? '') !== 'admin';
+}
+
+if (clipoSetupLocked($db_host, $db_name, $db_user, $db_pass, $config_file)) {
+    http_response_code(403);
+    ?>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clipo - Setup gesperrt</title>
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+    <div class="container" style="max-width: 600px; margin-top: 50px;">
+        <div class="card">
+            <h1>Clipo ist bereits eingerichtet</h1>
+            <p>Das Setup ist gesperrt, weil schon ein Administrator existiert.</p>
+            <p>Um es erneut auszuführen, <a href="login.php">melde dich als Administrator an</a> und rufe diese Seite dann wieder auf.</p>
+        </div>
+    </div>
+</body>
+</html>
+    <?php
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
