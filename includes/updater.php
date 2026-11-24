@@ -279,6 +279,34 @@ function clipoBackupFiles(array $relPaths) {
     }
 }
 
+/** Release-Notizen (einfaches Markdown) sicher als HTML darstellen: Listen, **fett**, Überschriften. */
+function clipoFormatReleaseNotes($text) {
+    $html = '';
+    $in_list = false;
+    foreach (preg_split('/\r?\n/', trim($text)) as $line) {
+        $line = rtrim($line);
+        $safe = htmlspecialchars(ltrim($line));
+        $safe = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $safe);
+        $safe = preg_replace('/`([^`]+)`/', '<code>$1</code>', $safe);
+        if (preg_match('/^\s*[-*]\s+/', $line)) {
+            if (!$in_list) { $html .= '<ul>'; $in_list = true; }
+            $html .= '<li>' . preg_replace('/^[-*]\s+/', '', $safe) . '</li>';
+            continue;
+        }
+        if ($in_list) { $html .= '</ul>'; $in_list = false; }
+        if ($line === '') {
+            continue;
+        }
+        if (preg_match('/^#{1,6}\s+/', $line)) {
+            $html .= '<p class="notes-heading">' . preg_replace('/^#{1,6}\s+/', '', $safe) . '</p>';
+        } else {
+            $html .= '<p>' . $safe . '</p>';
+        }
+    }
+    if ($in_list) { $html .= '</ul>'; }
+    return $html;
+}
+
 function clipoBackups() {
     $files = glob(CLIPO_ROOT . '/storage/backups/backup-*.zip') ?: [];
     usort($files, function ($a, $b) { return filemtime($b) - filemtime($a); });

@@ -217,6 +217,22 @@ include 'includes/header.php';
         .rte-btn:hover { background: #f1f5f9; }
         #editor { min-height: 300px; border: 2px solid #e2e8f0; border-radius: 0 0 12px 12px; padding: 20px; background: white; overflow-y: auto; }
         #editor:focus { outline: none; border-color: var(--primary-color); }
+
+        /* Update-Karte */
+        .update-card { margin-top: 20px; border: 1px solid #e2e8f0; border-left: 4px solid var(--primary-color); border-radius: 12px; padding: 20px 22px; background: #fff; }
+        .update-card-head { display: flex; align-items: center; gap: 14px; }
+        .update-badge { background: var(--primary-color); color: #fff; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 4px 10px; border-radius: 999px; flex-shrink: 0; }
+        .update-card-title { font-size: 1.15rem; font-weight: 700; color: #1e293b; }
+        .update-card-sub { font-size: 0.85rem; color: #64748b; margin-top: 2px; }
+        .update-notes { margin-top: 16px; padding: 14px 18px; background: #f8fafc; border-radius: 10px; font-size: 0.92rem; color: #334155; line-height: 1.55; }
+        .update-notes ul { margin: 4px 0 8px; padding-left: 20px; }
+        .update-notes li { margin-bottom: 4px; }
+        .update-notes p { margin: 0 0 8px; }
+        .update-notes p:last-child, .update-notes ul:last-child { margin-bottom: 0; }
+        .update-notes .notes-heading { font-weight: 700; color: #1e293b; margin-top: 10px; }
+        .update-notes code { background: #e2e8f0; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+        .update-card-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 18px; }
+        .update-card-actions span { font-size: 0.85rem; color: #64748b; }
     </style>
 
     <div class="container" style="max-width: 1000px;">
@@ -462,7 +478,7 @@ include 'includes/header.php';
             <div style="display: grid; grid-template-columns: 3fr 2fr; gap: 30px;">
                 <div class="card">
                     <h2 style="margin-top: 0;">Update einspielen</h2>
-                    <p style="color: #64748b;">Installierte Version: <strong>v<?php echo htmlspecialchars(CLIPO_VERSION); ?></strong></p>
+                    <p style="color: #64748b; margin-bottom: 20px;">Installierte Version: <strong>v<?php echo htmlspecialchars(CLIPO_VERSION); ?></strong></p>
 
                     <?php if (clipoIsGitCheckout()): ?>
                         <div class="alert alert-info" style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; display: block; font-weight: 400; font-size: 0.9rem;">
@@ -475,7 +491,7 @@ include 'includes/header.php';
                         <div class="alert alert-danger">Die PHP-Erweiterung „zip“ fehlt auf dem Server – Online-Updates sind nicht möglich. Bitte die Dateien per FTP einspielen.</div>
                     <?php endif; ?>
 
-                    <p>Online-Updates aus <code><?php echo htmlspecialchars($update_repo ?: '–'); ?></code></p>
+                    <p style="margin-bottom: 12px;">Online-Updates aus <code><?php echo htmlspecialchars($update_repo ?: '–'); ?></code></p>
                     <form method="POST">
                         <?php echo csrfField(); ?>
                         <button type="submit" name="check_update" value="1" class="btn btn-secondary">🔄 Nach Updates suchen</button>
@@ -483,16 +499,24 @@ include 'includes/header.php';
 
                     <?php if ($latest): ?>
                         <?php if ($latest['newer']): ?>
-                            <div class="alert alert-success" style="margin-top: 20px; display: block;">
-                                <strong>Version <?php echo htmlspecialchars($latest['version']); ?> ist verfügbar.</strong>
-                                <?php if ($latest['name']): ?><div style="margin-top: 4px;"><?php echo htmlspecialchars($latest['name']); ?></div><?php endif; ?>
+                            <div class="update-card">
+                                <div class="update-card-head">
+                                    <span class="update-badge">Neu</span>
+                                    <div>
+                                        <div class="update-card-title">Version <?php echo htmlspecialchars($latest['version']); ?> ist verfügbar</div>
+                                        <div class="update-card-sub">
+                                            <?php if ($latest['name'] && $latest['name'] !== 'Clipo ' . $latest['version']): ?><?php echo htmlspecialchars($latest['name']); ?> · <?php endif; ?>installiert ist v<?php echo htmlspecialchars(CLIPO_VERSION); ?>
+                                        </div>
+                                    </div>
+                                </div>
                                 <?php if ($latest['notes']): ?>
-                                    <pre style="white-space: pre-wrap; font-size: 0.85rem; margin: 10px 0; font-family: inherit;"><?php echo htmlspecialchars($latest['notes']); ?></pre>
+                                    <div class="update-notes"><?php echo clipoFormatReleaseNotes($latest['notes']); ?></div>
                                 <?php endif; ?>
                                 <?php if ($zip_ok): ?>
-                                    <form method="POST" style="margin-top: 10px;" onsubmit="return clipoStartUpdate(this, 'Update auf Version <?php echo htmlspecialchars($latest['version'], ENT_QUOTES); ?> jetzt installieren? Vorher wird automatisch ein Backup der Programmdateien angelegt.');">
+                                    <form method="POST" class="update-card-actions" onsubmit="return clipoStartUpdate(this, 'Update auf Version <?php echo htmlspecialchars($latest['version'], ENT_QUOTES); ?> jetzt installieren? Vorher wird automatisch ein Backup der Programmdateien angelegt.');">
                                         <?php echo csrfField(); ?>
                                         <button type="submit" name="install_update" value="1" class="btn">⬇️ Jetzt installieren</button>
+                                        <span>Vorher wird automatisch ein Backup angelegt.</span>
                                     </form>
                                 <?php endif; ?>
                             </div>
