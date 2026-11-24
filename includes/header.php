@@ -2,13 +2,11 @@
 require_once 'db.php';
 require_once 'auth.php';
 
-$primary_color = getSetting('primary_color', '#f39200');
-$secondary_color = getSetting('secondary_color', '#4a5c66');
+$primary_color = clipoValidColor(getSetting('primary_color', '#f39200'), '#f39200');
+$secondary_color = clipoValidColor(getSetting('secondary_color', '#4a5c66'), '#4a5c66');
 $footer_email = getSetting('footer_email', 'hochwald@lmz-bw.de');
 
-$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
-$host = $_SERVER['HTTP_HOST'];
-$base_url = $protocol . "://" . $host . rtrim(dirname($_SERVER['PHP_SELF']), '/\\');
+$base_url = (defined('APP_URL') && APP_URL) ? rtrim(APP_URL, '/') : clipoRequestBaseUrl();
 
 // Get User Meta for Greeting
 $header_user = null;
@@ -24,7 +22,7 @@ if (isLoggedIn()) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title ?? 'Clipo'; ?></title>
+    <title><?php echo htmlspecialchars($page_title ?? 'Clipo'); ?></title>
     <link rel="stylesheet" href="assets/css/style.css">
     <style>
         :root {

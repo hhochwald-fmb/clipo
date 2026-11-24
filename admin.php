@@ -75,20 +75,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['install_update']) ||
 // Handle Settings Update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
     checkCsrf();
-    if (isset($_POST['primary_color'])) setSetting('primary_color', $_POST['primary_color']);
-    if (isset($_POST['secondary_color'])) setSetting('secondary_color', $_POST['secondary_color']);
-    if (isset($_POST['videos_per_page'])) setSetting('videos_per_page', $_POST['videos_per_page']);
-    if (isset($_POST['footer_email'])) setSetting('footer_email', $_POST['footer_email']);
+    if (isset($_POST['primary_color'])) setSetting('primary_color', clipoValidColor($_POST['primary_color'], '#f39200'));
+    if (isset($_POST['secondary_color'])) setSetting('secondary_color', clipoValidColor($_POST['secondary_color'], '#4a5c66'));
+    if (isset($_POST['videos_per_page'])) setSetting('videos_per_page', (string) min(200, max(1, (int) $_POST['videos_per_page'])));
+    if (isset($_POST['footer_email'])) {
+        if ($_POST['footer_email'] === '' || filter_var($_POST['footer_email'], FILTER_VALIDATE_EMAIL)) {
+            setSetting('footer_email', $_POST['footer_email']);
+        } else {
+            $error = "Die Kontakt-E-Mail ist ungültig und wurde nicht gespeichert.";
+        }
+    }
+    if (isset($_POST['app_url'])) {
+        $url = rtrim(trim($_POST['app_url']), '/');
+        if ($url === '' || preg_match('#^https?://[A-Za-z0-9.\-]+(:[0-9]+)?(/[A-Za-z0-9._~\-/]*)?$#', $url)) {
+            setSetting('app_url', $url);
+        } else {
+            $error = "Die Adresse der Instanz ist ungültig (Beispiel: https://clipo.meine-schule.de).";
+        }
+    }
     if (isset($_POST['site_name'])) setSetting('site_name', $_POST['site_name']);
-    if (isset($_POST['public_access'])) setSetting('public_access', $_POST['public_access']);
+    if (isset($_POST['public_access'])) setSetting('public_access', $_POST['public_access'] === '1' ? '1' : '0');
     if (isset($_POST['impressum_content'])) setSetting('impressum_content', sanitizeHtml($_POST['impressum_content']));
-    $message = "Einstellungen wurden gespeichert.";
+    if (!$error) {
+        $message = "Einstellungen wurden gespeichert.";
+    }
+}
+
+// Adresse dieser Instanz einmalig merken (für Links in E-Mails). Der Admin ist angemeldet,
+// die Adresse seiner Anfrage ist also vertrauenswürdig.
+if (!(defined('APP_URL') && APP_URL) && getSetting('app_url', '') === '') {
+    setSetting('app_url', clipoRequestBaseUrl());
 }
 
 // Handle System Cleaning (Orphans)
 $orphans = [];
 if (is_dir(UPLOAD_DIR)) {
-    $all_files = array_diff(scandir(UPLOAD_DIR), array('.', '..', '.DS_Store', 'index.php', '.htaccess', '.gitkeep'));
+    $all_files = array_diff(scandir(UPLOAD_DIR), array('.', '..', '.DS_Store', 'index.php', 'index.html', '.htaccess', '.gitkeep'));
     $stmt = $pdo->query("SELECT filename FROM videos");
     $db_files = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
@@ -130,14 +152,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_user'])) {
     $username = $_POST['username'] ?? '';
     $email = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
-    $role = $_POST['role'] ?? 'viewer';
-    if ($username && $password) {
+    $role = ($_POST['role'] ?? '') === 'admin' ? 'admin' : 'manager';
+    if ($username && strlen($password) < 8) {
+        $error = "Das Passwort muss mindestens 8 Zeichen lang sein.";
+    } elseif ($username && $password) {
         $hashed = password_hash($password, PASSWORD_DEFAULT);
         try {
             $stmt = $pdo->prepare("INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)");
             $stmt->execute([$username, $email, $hashed, $role]);
             $message = "Benutzer $username wurde angelegt.";
-        } catch (PDOException $e) { $error = "Fehler: " . $e->getMessage(); }
+        } catch (PDOException $e) {
+            $error = $e->getCode() == 23000 ? "Der Benutzername $username ist schon vergeben." : "Benutzer konnte nicht angelegt werden.";
+            error_log('Clipo: ' . $e->getMessage());
+        }
     }
 }
 
@@ -195,8 +222,8 @@ include 'includes/header.php';
     <div class="container" style="max-width: 1000px;">
         <h1>Admin Bereich</h1>
 
-        <?php if ($message): ?><div class="alert alert-success"><?php echo $message; ?></div><?php endif; ?>
-        <?php if ($error): ?><div class="alert alert-danger"><?php echo $error; ?></div><?php endif; ?>
+        <?php if ($message): ?><div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
+        <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
         <div class="admin-nav">
             <a href="?tab=users" class="<?php echo $active_tab == 'users' ? 'active' : ''; ?>">Benutzer</a>
@@ -281,11 +308,11 @@ include 'includes/header.php';
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px;">
                         <div class="form-group">
                             <label>Primärfarbe</label>
-                            <input type="color" name="primary_color" value="<?php echo getSetting('primary_color', '#f39200'); ?>" style="height: 50px;">
+                            <input type="color" name="primary_color" value="<?php echo clipoValidColor(getSetting('primary_color'), '#f39200'); ?>" style="height: 50px;">
                         </div>
                         <div class="form-group">
                             <label>Sekundärfarbe</label>
-                            <input type="color" name="secondary_color" value="<?php echo getSetting('secondary_color', '#4a5c66'); ?>" style="height: 50px;">
+                            <input type="color" name="secondary_color" value="<?php echo clipoValidColor(getSetting('secondary_color'), '#4a5c66'); ?>" style="height: 50px;">
                         </div>
                         <div class="form-group">
                             <label>Videos pro Seite</label>
@@ -323,6 +350,16 @@ include 'includes/header.php';
                     <div class="form-group">
                         <label>Kontakt E-Mail</label>
                         <input type="email" name="footer_email" value="<?php echo htmlspecialchars(getSetting('footer_email')); ?>">
+                    </div>
+                    <div class="form-group">
+                        <label>Adresse dieser Clipo-Instanz</label>
+                        <?php if (defined('APP_URL') && APP_URL): ?>
+                            <input type="text" value="<?php echo htmlspecialchars(APP_URL); ?>" disabled style="background: #f1f5f9;">
+                            <p style="font-size: 0.85rem; color: #64748b; margin-top: 5px;">Wird in der config.php festgelegt (APP_URL).</p>
+                        <?php else: ?>
+                            <input type="url" name="app_url" value="<?php echo htmlspecialchars(getSetting('app_url')); ?>" placeholder="https://clipo.meine-schule.de">
+                            <p style="font-size: 0.85rem; color: #64748b; margin-top: 5px;">Wird für die Links in „Passwort vergessen“-Mails verwendet. Beim ersten Öffnen des Admin-Bereichs automatisch eingetragen.</p>
+                        <?php endif; ?>
                     </div>
                     <div class="form-group">
                         <label>Impressum (RTE)</label>

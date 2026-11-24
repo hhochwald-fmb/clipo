@@ -7,17 +7,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     checkCsrf();
     $username = $_POST['username'] ?? '';
     $password = $_POST['password'] ?? '';
-    if ($username && $password) {
+    $throttle_key = 'login:' . mb_strtolower($username);
+    if ($username && $password && clipoThrottled($throttle_key)) {
+        $error = "Zu viele Fehlversuche. Bitte warte 15 Minuten und versuche es dann erneut.";
+    } elseif ($username && $password) {
         $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
         $stmt->execute([$username]);
         $user = $stmt->fetch();
         if ($user && password_verify($password, $user['password'])) {
+            clipoClearAttempts($throttle_key);
             session_regenerate_id(true);
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['user_role'] = $user['role'];
             header("Location: index.php"); exit;
-        } else { $error = "Ungültig."; }
+        } else {
+            clipoRecordAttempt($throttle_key);
+            $error = "Benutzername oder Passwort ist falsch.";
+        }
     }
 }
 $page_title = 'Clipo - Login';
@@ -27,7 +34,7 @@ include 'includes/header.php';
         <!-- Login Card -->
         <div class="card" style="flex: 0 0 400px;">
             <h1>Anmelden</h1>
-            <?php if ($error): ?><div class="alert alert-danger"><?php echo $error; ?></div><?php endif; ?>
+            <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
             <?php if (isset($_GET['msg']) && $_GET['msg'] === 'timeout'): ?>
                 <div class="alert alert-danger">Sitzung abgelaufen. Bitte erneut anmelden.</div>
             <?php endif; ?>

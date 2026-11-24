@@ -6,6 +6,25 @@ if (getSetting('public_access') !== '1') {
     requireLogin();
 }
 
+// --- Handle deletion (POST only, CSRF-protected) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete']) && isManager()) {
+    checkCsrf();
+    $id = (int)$_POST['delete'];
+    if (canEditVideo($id)) {
+        $stmt = $pdo->prepare("SELECT filename FROM videos WHERE id = ?"); $stmt->execute([$id]);
+        $video = $stmt->fetch();
+        if ($video) {
+            // Nur Dateien direkt im Upload-Ordner löschen (Schutz vor manipulierten Einträgen wie "../config.php")
+            if (clipoSafeUploadName($video['filename']) && is_file(UPLOAD_DIR . $video['filename'])) {
+                unlink(UPLOAD_DIR . $video['filename']);
+            }
+            $pdo->prepare("DELETE FROM videos WHERE id = ?")->execute([$id]);
+            header("Location: index.php?msg=deleted"); exit;
+        }
+    } else {
+        header("Location: index.php?msg=denied"); exit;
+    }
+}
 $page_title = 'Clipo - Übersicht';
 include 'includes/header.php';
 
@@ -15,6 +34,10 @@ $page = isset($_GET['p']) ? max(1, (int)$_GET['p']) : 1;
 $offset = ($page - 1) * $limit;
 $search = $_GET['q'] ?? '';
 $sort = $_GET['s'] ?? 'newest';
+if (!in_array($sort, ['newest', 'oldest', 'alpha', 'alpha_desc'], true)) {
+    $sort = 'newest';
+}
+$search = is_string($search) ? $search : '';
 $mine = isset($_GET['mine']) && $_GET['mine'] == '1';
 
 // Build Query
@@ -49,6 +72,7 @@ switch ($sort) {
 $count_stmt = $pdo->prepare("SELECT COUNT(*) FROM videos v LEFT JOIN users u ON v.user_id = u.id WHERE $where_clause");
 $count_stmt->execute($params);
 $total_videos = $count_stmt->fetchColumn();
+$limit = max(1, $limit);
 $total_pages = ceil($total_videos / $limit);
 
 // Fetch videos for current page
@@ -56,23 +80,6 @@ $stmt = $pdo->prepare("SELECT v.*, u.username as uploader FROM videos v LEFT JOI
 $stmt->execute($params);
 $videos = $stmt->fetchAll();
 
-// --- Handle deletion (POST only, CSRF-protected) ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete']) && isManager()) {
-    checkCsrf();
-    $id = (int)$_POST['delete'];
-    if (canEditVideo($id)) {
-        $stmt = $pdo->prepare("SELECT filename FROM videos WHERE id = ?"); $stmt->execute([$id]);
-        $video = $stmt->fetch();
-        if ($video) {
-            $filepath = UPLOAD_DIR . $video['filename'];
-            if (file_exists($filepath)) unlink($filepath);
-            $pdo->prepare("DELETE FROM videos WHERE id = ?")->execute([$id]);
-            header("Location: index.php?msg=deleted"); exit;
-        }
-    } else {
-        header("Location: index.php?msg=denied"); exit;
-    }
-}
 ?>
 
     <div class="container">
@@ -129,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete']) && isManage
             <div class="video-grid">
                 <?php foreach ($videos as $video): ?>
                     <div class="video-card">
-                        <div class="video-thumb" onclick="openPlayer('<?php echo htmlspecialchars($video['filename']); ?>', '<?php echo htmlspecialchars(addslashes($video['title'])); ?>')">
+                        <div class="video-thumb" onclick="openPlayer(<?php echo htmlspecialchars(json_encode($video['filename'])); ?>, <?php echo htmlspecialchars(json_encode($video['title'])); ?>)">
                             <video muted onmouseover="this.play()" onmouseout="this.pause(); this.currentTime = 0;">
                                 <source src="uploads/<?php echo htmlspecialchars($video['filename']); ?>" type="video/mp4">
                             </video>
@@ -157,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete']) && isManage
                             </p>
                             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                 <a href="watch.php?v=<?php echo $video['id']; ?>" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px;">Ansehen</a>
-                                <button onclick="copyToClipboard('<?php echo $base_url . '/uploads/' . $video['filename']; ?>')" class="btn" style="padding: 6px 12px; font-size: 13px; background: #333;">Link</button>
+                                <button onclick="copyToClipboard(<?php echo htmlspecialchars(json_encode($base_url . '/uploads/' . $video['filename'])); ?>)" class="btn" style="padding: 6px 12px; font-size: 13px; background: #333;">Link</button>
                                 <?php if (isManager() && canEditVideo($video['id'])): ?>
                                     <a href="upload.php?edit=<?php echo $video['id']; ?>" class="btn" style="padding: 6px 12px; font-size: 13px; background-color: #3d86ad;">Edit</a>
                                     <form method="POST" style="display: inline;" onsubmit="return confirm('Sicher löschen?')">
@@ -173,22 +180,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete']) && isManage
             </div>
 
             <!-- Pagination -->
+            <?php $page_query = '&' . http_build_query(array_filter(['q' => $search, 's' => $sort, 'mine' => $mine ? '1' : ''])); ?>
             <?php if ($total_pages > 1): ?>
                 <div class="pagination">
                     <?php if ($page > 1): ?>
-                        <a href="?p=<?php echo $page - 1; ?><?php echo $search ? '&q='.urlencode($search) : ''; ?>&s=<?php echo $sort; ?>">&laquo; Zurück</a>
+                        <a href="?p=<?php echo $page - 1; ?><?php echo htmlspecialchars($page_query); ?>">&laquo; Zurück</a>
                     <?php endif; ?>
 
                     <?php for ($i = 1; $i <= $total_pages; $i++): ?>
                         <?php if ($i == $page): ?>
                             <span class="active"><?php echo $i; ?></span>
                         <?php else: ?>
-                            <a href="?p=<?php echo $i; ?><?php echo $search ? '&q='.urlencode($search) : ''; ?>&s=<?php echo $sort; ?>"><?php echo $i; ?></a>
+                            <a href="?p=<?php echo $i; ?><?php echo htmlspecialchars($page_query); ?>"><?php echo $i; ?></a>
                         <?php endif; ?>
                     <?php endfor; ?>
 
                     <?php if ($page < $total_pages): ?>
-                        <a href="?p=<?php echo $page + 1; ?><?php echo $search ? '&q='.urlencode($search) : ''; ?>&s=<?php echo $sort; ?>">Weiter &raquo;</a>
+                        <a href="?p=<?php echo $page + 1; ?><?php echo htmlspecialchars($page_query); ?>">Weiter &raquo;</a>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>

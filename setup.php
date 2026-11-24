@@ -43,19 +43,26 @@ function clipoSetupLocked($host, $name, $user, $pass, $config_file) {
     if (getenv('CLIPO_SETUP_UNLOCK') === '1' || (defined('CLIPO_SETUP_UNLOCK') && CLIPO_SETUP_UNLOCK)) {
         return false;
     }
+    // Ist Clipo schon konfiguriert (config.php oder Docker-Umgebungsvariablen), die Datenbank
+    // aber gerade nicht erreichbar, bleibt das Setup gesperrt. Sonst könnte jemand in diesem
+    // Moment das Setup mit einer eigenen Datenbank ausführen und die Installation übernehmen.
+    $configured = ($config_file && file_exists($config_file)) || getenv('DB_HOST') !== false;
     try {
         $pdo = new PDO("mysql:host=$host;dbname=$name;charset=utf8mb4", $user, $pass);
+    } catch (PDOException $e) {
+        return $configured;
+    }
+    try {
         $stmt = $pdo->query("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1");
         $has_admin = (bool)$stmt->fetch();
     } catch (PDOException $e) {
-        return false; // DB nicht erreichbar oder noch leer -> Setup muss möglich sein
+        return false; // Datenbank erreichbar, aber noch leer -> Erstinstallation
     }
     if (!$has_admin) {
         return false;
     }
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
+    require_once __DIR__ . '/includes/session.php';
+    clipoStartSession();
     return ($_SESSION['user_role'] ?? '') !== 'admin';
 }
 
@@ -74,7 +81,7 @@ if (clipoSetupLocked($db_host, $db_name, $db_user, $db_pass, $config_file)) {
     <div class="container" style="max-width: 600px; margin-top: 50px;">
         <div class="card">
             <h1>Clipo ist bereits eingerichtet</h1>
-            <p>Das Setup ist gesperrt, weil schon ein Administrator existiert.</p>
+            <p>Das Setup ist gesperrt, weil schon ein Administrator existiert – oder weil Clipo bereits konfiguriert ist, die Datenbank aber gerade nicht erreichbar ist.</p>
             <p>Um es erneut auszuführen, <a href="login.php">melde dich als Administrator an</a> und rufe diese Seite dann wieder auf.</p>
         </div>
     </div>

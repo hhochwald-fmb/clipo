@@ -26,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user) {
     $pass1 = $_POST['pass1'] ?? '';
     $pass2 = $_POST['pass2'] ?? '';
     
-    if (strlen($pass1) < 6) {
-        $error = "Das Passwort muss mindestens 6 Zeichen lang sein.";
+    if (strlen($pass1) < 8) {
+        $error = "Das Passwort muss mindestens 8 Zeichen lang sein.";
     } elseif ($pass1 !== $pass2) {
         $error = "Die Passwörter stimmen nicht überein.";
     } else {
@@ -49,23 +49,23 @@ include 'includes/header.php';
             <?php if ($user): ?>
                 <p style="margin-bottom: 25px; color: #64748b;">Hallo <strong><?php echo htmlspecialchars($user['username']); ?></strong>, bitte wähle ein neues Passwort.</p>
 
-                <?php if ($message): ?><div class="alert alert-success"><?php echo $message; ?></div><?php endif; ?>
-                <?php if ($error): ?><div class="alert alert-danger"><?php echo $error; ?></div><?php endif; ?>
+                <?php if ($message): ?><div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
+                <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
                 <form method="POST">
                     <?php echo csrfField(); ?>
                     <div class="form-group">
                         <label>Neues Passwort</label>
-                        <input type="password" name="pass1" required minlength="6">
+                        <input type="password" name="pass1" required minlength="8">
                     </div>
                     <div class="form-group">
                         <label>Passwort wiederholen</label>
-                        <input type="password" name="pass2" required minlength="6">
+                        <input type="password" name="pass2" required minlength="8">
                     </div>
                     <button type="submit" class="btn">Passwort speichern</button>
                 </form>
             <?php else: ?>
-                <div class="alert alert-danger"><?php echo $error; ?></div>
+                <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
                 <a href="forgot_password.php" class="btn">Neuen Link anfordern</a>
             <?php endif; ?>
         </div>

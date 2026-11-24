@@ -37,10 +37,81 @@ function canEditVideo($video_id) {
     return $video && ($video['user_id'] == $_SESSION['user_id']);
 }
 
-function csrfToken() {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
+// Basis-Adresse der Instanz (z. B. https://clipo.schule.de/videos), ohne Schrägstrich am Ende.
+// Reihenfolge: APP_URL aus der Konfiguration, dann die gespeicherte Adresse (wird beim Setup
+// und im Admin-Bereich festgehalten), zuletzt aus der Anfrage abgeleitet.
+// $trusted_only = true: nie aus der Anfrage ableiten (für Links in E-Mails, sonst kann ein
+// Angreifer per gefälschtem Host-Header Reset-Links auf seine eigene Domain umbiegen).
+function clipoBaseUrl($trusted_only = false) {
+    if (defined('APP_URL') && APP_URL) {
+        return rtrim(APP_URL, '/');
     }
+    $saved = getSetting('app_url', '');
+    if ($saved) {
+        return rtrim($saved, '/');
+    }
+    return $trusted_only ? null : clipoRequestBaseUrl();
+}
+
+function clipoRequestBaseUrl() {
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    if (!preg_match('/^[A-Za-z0-9.\-]+(:[0-9]+)?$/', $host)) {
+        $host = 'localhost';
+    }
+    // SCRIPT_NAME statt PHP_SELF: PHP_SELF enthält angehängte Pfade (index.php/<schadcode>)
+    $path = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+    return ($https ? 'https' : 'http') . '://' . $host . $path;
+}
+
+// Nur einfache Dateinamen direkt im Upload-Ordner zulassen (kein ../, keine Unterordner)
+function clipoSafeUploadName($name) {
+    return is_string($name) && preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $name) && strpos($name, '..') === false;
+}
+
+function clipoValidColor($value, $default) {
+    return (is_string($value) && preg_match('/^#[0-9a-fA-F]{6}$/', $value)) ? $value : $default;
+}
+
+// Schutz vor Passwort-Raten: Fehlversuche pro Schlüssel (z. B. Benutzername) und IP zählen
+function clipoThrottled($key, $max_per_key = 5, $max_per_ip = 20, $minutes = 15) {
+    global $pdo;
+    try {
+        $pdo->exec("DELETE FROM login_attempts WHERE attempted_at < NOW() - INTERVAL 1 DAY");
+        $stmt = $pdo->prepare("SELECT
+                SUM(attempt_key = ?) AS by_key,
+                SUM(ip = ?) AS by_ip
+            FROM login_attempts WHERE attempted_at > NOW() - INTERVAL $minutes MINUTE AND (attempt_key = ? OR ip = ?)");
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $stmt->execute([$key, $ip, $key, $ip]);
+        $row = $stmt->fetch();
+        return ((int) $row['by_key'] >= $max_per_key) || ((int) $row['by_ip'] >= $max_per_ip);
+    } catch (PDOException $e) {
+        return false;
+    }
+}
+
+function clipoRecordAttempt($key) {
+    global $pdo;
+    try {
+        $pdo->prepare("INSERT INTO login_attempts (attempt_key, ip, attempted_at) VALUES (?, ?, NOW())")
+            ->execute([mb_substr($key, 0, 190), $_SERVER['REMOTE_ADDR'] ?? '']);
+    } catch (PDOException $e) {
+    }
+}
+
+function clipoClearAttempts($key) {
+    global $pdo;
+    try {
+        $pdo->prepare("DELETE FROM login_attempts WHERE attempt_key = ?")->execute([$key]);
+    } catch (PDOException $e) {
+    }
+}
+
+function csrfToken() {
+    require_once __DIR__ . '/session.php';
+    clipoStartSession();
     if (empty($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }

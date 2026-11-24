@@ -149,7 +149,8 @@ function clipoUpdateAllowed($rel) {
         return $rel !== 'config.php';
     }
     $files = ['VERSION', 'README.md', 'INSTALLATION.md', 'ENTWICKLUNG.md', 'CHANGELOG.md', 'LICENSE',
-        '.htaccess', '.gitignore', '.dockerignore', 'Dockerfile', 'docker-compose.yml', 'storage/.htaccess'];
+        '.htaccess', '.gitignore', '.dockerignore', 'Dockerfile', 'docker-compose.yml', 'storage/.htaccess',
+        'uploads/.htaccess', 'uploads/index.html'];
     if (in_array($rel, $files, true)) {
         return true;
     }

@@ -41,8 +41,11 @@ if (isset($_GET['ajax']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['error' => 'Datei ist kein gültiges MP4-Video (MIME: ' . htmlspecialchars($mime) . ').']); exit;
     }
 
-    $new_filename = uniqid() . '.mp4';
+    $new_filename = bin2hex(random_bytes(12)) . '.mp4';
     if (move_uploaded_file($_FILES['video']['tmp_name'], UPLOAD_DIR . $new_filename)) {
+        // Merken, dass diese Datei von diesem Benutzer stammt - nur solche Dateien
+        // dürfen im zweiten Schritt als Video eingetragen werden.
+        $_SESSION['pending_uploads'][$new_filename] = true;
         echo json_encode(['success' => true, 'filename' => $new_filename, 'original_name' => $filename]); exit;
     } else {
         echo json_encode(['error' => 'Datei konnte nicht gespeichert werden. Bitte Schreibrechte für Ordner "uploads" prüfen (chmod 775/777).']); exit;
@@ -82,8 +85,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_GET['ajax'])) {
         $stmt->execute([$title, $description, $tags, (int)$_POST['id']]);
         header("Location: index.php?msg=updated"); exit;
     } else {
-        if ($filename) {
-            $filesize = file_exists(UPLOAD_DIR . $filename) ? filesize(UPLOAD_DIR . $filename) : 0;
+        // Nur eine Datei akzeptieren, die genau dieser Benutzer gerade hochgeladen hat.
+        // Sonst könnte man z. B. "../config.php" eintragen und beim Löschen des Videos
+        // beliebige Dateien auf dem Server entfernen.
+        if ($filename && (!clipoSafeUploadName($filename) || empty($_SESSION['pending_uploads'][$filename]) || !is_file(UPLOAD_DIR . $filename))) {
+            $error = "Ungültige Upload-Datei. Bitte das Video erneut hochladen.";
+        } elseif ($filename) {
+            unset($_SESSION['pending_uploads'][$filename]);
+            $filesize = filesize(UPLOAD_DIR . $filename);
             $stmt = $pdo->prepare("INSERT INTO videos (filename, original_name, title, description, tags, user_id, file_size) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$filename, $orig_name, $title ?: $orig_name, $description, $tags, $_SESSION['user_id'], $filesize]);
             header("Location: index.php?msg=uploaded"); exit;
@@ -99,7 +108,7 @@ include 'includes/header.php';
     <div class="container" style="max-width: 800px;">
         <div class="card">
             <h1><?php echo $edit_mode ? 'Video bearbeiten' : 'Neues Video hochladen'; ?></h1>
-            <?php if ($error): ?><div class="alert alert-danger" id="error-box"><?php echo $error; ?></div><?php endif; ?>
+            <?php if ($error): ?><div class="alert alert-danger" id="error-box"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
             
             <form method="POST" id="uploadForm">
                 <?php echo csrfField(); ?>

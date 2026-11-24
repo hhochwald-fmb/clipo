@@ -52,6 +52,35 @@ function clipoRunMigrations(PDO $pdo) {
         $logs[] = "Spalte videos.tags hinzugefügt.";
     }
 
+    // Schutz vor Passwort-Raten (ab 1.6.1)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        attempt_key VARCHAR(190) NOT NULL,
+        ip VARCHAR(45) NOT NULL,
+        attempted_at DATETIME NOT NULL,
+        INDEX idx_key (attempt_key, attempted_at),
+        INDEX idx_ip (ip, attempted_at)
+    ) ENGINE=InnoDB");
+
+    // Upload-Ordner absichern (ab 1.6.1): keine Skripte ausführen, keine Dateiliste anzeigen.
+    // Wird hier angelegt, weil ältere Updater nicht in uploads/ schreiben.
+    $upload_dir = defined('UPLOAD_DIR') ? UPLOAD_DIR : dirname(__DIR__) . '/uploads/';
+    if (is_dir($upload_dir) && is_writable($upload_dir)) {
+        if (!file_exists($upload_dir . '.htaccess')) {
+            $source = dirname(__DIR__) . '/uploads/.htaccess';
+            $rules = is_file($source) ? file_get_contents($source)
+                : "# Im Upload-Ordner niemals Skripte ausführen - nur Videos und Bilder ausliefern\n"
+                . "<FilesMatch \"\\.(php\\d?|phtml|phar|pht|phps|cgi|pl|py|sh|shtml|html?|svg|js)$\">\n    Require all denied\n</FilesMatch>\n\n"
+                . "# Dateien nie als etwas anderes interpretieren, als sie sind\n"
+                . "<IfModule mod_headers.c>\n    Header set X-Content-Type-Options \"nosniff\"\n</IfModule>\n";
+            file_put_contents($upload_dir . '.htaccess', $rules);
+            $logs[] = "Schutzregeln für den Upload-Ordner angelegt.";
+        }
+        if (!file_exists($upload_dir . 'index.html')) {
+            file_put_contents($upload_dir . 'index.html', '');
+        }
+    }
+
     // --- Neue Schritte hier anhängen ---
 
     $pdo->prepare("INSERT INTO settings (setting_key, setting_value) VALUES ('db_version', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)")

@@ -9,34 +9,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     checkCsrf();
     $email = $_POST['email'] ?? '';
     
+    $throttle_key = 'reset:' . mb_strtolower($email);
     if (empty($email)) {
         $error = "Bitte E-Mail Adresse eingeben.";
+    } elseif (clipoThrottled($throttle_key, 3, 10, 60)) {
+        // Gleiche Meldung wie sonst - kein Hinweis, ob die Adresse existiert
+        $message = "Sollte die Adresse im System sein, wurde ein Link versendet.";
     } else {
+        clipoRecordAttempt($throttle_key);
         $stmt = $pdo->prepare("SELECT id, username FROM users WHERE email = ?");
         $stmt->execute([$email]);
         $user = $stmt->fetch();
-        
-        if ($user) {
+
+        // Link nur mit der hinterlegten Adresse der Instanz bauen, nie aus dem Host-Header
+        // der Anfrage - sonst könnte ein Angreifer den Link auf seine eigene Domain umbiegen.
+        $base = clipoBaseUrl(true);
+        if ($user && !$base) {
+            error_log("Clipo: Passwort-Reset nicht möglich - Adresse der Instanz unbekannt. Einmal als Admin den Admin-Bereich öffnen oder APP_URL in config.php setzen.");
+        }
+
+        if ($user && $base) {
             $token = bin2hex(random_bytes(32));
-            $expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
-            
-            $stmt = $pdo->prepare("UPDATE users SET reset_token = ?, reset_expiry = ? WHERE id = ?");
-            $stmt->execute([$token, $expiry, $user['id']]);
-            
-            $reset_link = null;
-            if (defined('APP_URL') && APP_URL) {
-                $reset_link = rtrim(APP_URL, '/') . "/reset_password.php?token=" . urlencode($token);
-            } else {
-                // Fallback: nur erlauben, wenn Host-Header ein gültiger Hostname ist (kein injizierter Müll)
-                $host = $_SERVER['HTTP_HOST'] ?? '';
-                if (preg_match('/^[a-zA-Z0-9.\-]+(:[0-9]+)?$/', $host)) {
-                    $base_path = rtrim(dirname($_SERVER['PHP_SELF']), '/');
-                    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-                    $reset_link = $scheme . "://" . $host . $base_path . "/reset_password.php?token=" . urlencode($token);
-                } else {
-                    error_log("Clipo: Passwort-Reset nicht möglich - APP_URL in config.php setzen.");
-                }
-            }
+
+            $stmt = $pdo->prepare("UPDATE users SET reset_token = ?, reset_expiry = NOW() + INTERVAL 1 HOUR WHERE id = ?");
+            $stmt->execute([$token, $user['id']]);
+
+            $reset_link = $base . "/reset_password.php?token=" . urlencode($token);
 
             if ($reset_link) {
                 // Send Email

@@ -11,7 +11,7 @@ $video = $stmt->fetch();
 
 if (!$video) die("Video nicht gefunden.");
 
-$page_title = 'Clipo - ' . htmlspecialchars($video['title']);
+$page_title = 'Clipo - ' . $video['title'];
 include 'includes/header.php';
 
 $direct_link = $base_url . "/uploads/" . $video['filename'];

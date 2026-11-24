@@ -4,6 +4,8 @@ config.php
 # Hochgeladene Videos – nicht ins Repository
 uploads/*
 !uploads/.gitkeep
+!uploads/.htaccess
+!uploads/index.html
 
 # Claude Code
 .claude/

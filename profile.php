@@ -36,9 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!in_array($ext, $allowed_ext, true) || !in_array($mime, $allowed_mimes, true) || $imginfo === false) {
                 $error = "Ungültiges Format. Nur JPG, PNG, GIF erlaubt.";
             } else {
-                $new_image_name = 'avatar_' . $user_id . '_' . time() . '.' . $ext;
+                $new_image_name = 'avatar_' . $user_id . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
                 if (move_uploaded_file($_FILES['profile_image']['tmp_name'], UPLOAD_DIR . $new_image_name)) {
-                    if ($user['profile_image'] && file_exists(UPLOAD_DIR . $user['profile_image'])) {
+                    if ($user['profile_image'] && clipoSafeUploadName($user['profile_image']) && is_file(UPLOAD_DIR . $user['profile_image'])) {
                         unlink(UPLOAD_DIR . $user['profile_image']);
                     }
                     $pdo->prepare("UPDATE users SET profile_image = ? WHERE id = ?")->execute([$new_image_name, $user_id]);
@@ -59,7 +59,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Update Password
     if (!empty($new_password)) {
-        if ($new_password === $confirm_password) {
+        if (strlen($new_password) < 8) {
+            $error = "Das Passwort muss mindestens 8 Zeichen lang sein.";
+        } elseif ($new_password === $confirm_password) {
             $hashed = password_hash($new_password, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
             $stmt->execute([$hashed, $user_id]);
@@ -81,8 +83,8 @@ include 'includes/header.php';
 <div class="container" style="max-width: 600px;">
     <h1>Mein Profil</h1>
 
-    <?php if ($message): ?><div class="alert alert-success"><?php echo $message; ?></div><?php endif; ?>
-    <?php if ($error): ?><div class="alert alert-danger"><?php echo $error; ?></div><?php endif; ?>
+    <?php if ($message): ?><div class="alert alert-success"><?php echo htmlspecialchars($message); ?></div><?php endif; ?>
+    <?php if ($error): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 
     <div class="card">
         <form method="POST" enctype="multipart/form-data">

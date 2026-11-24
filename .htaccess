@@ -14,3 +14,10 @@ RedirectMatch 404 ^(.*/)?includes/
 
 # storage/ enthält Update-Backups (komplette Programmdateien)
 RedirectMatch 404 ^(.*/)?storage/
+
+# Sicherheits-Header (nur wenn mod_headers verfügbar ist)
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>

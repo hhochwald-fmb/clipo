@@ -1,0 +1,9 @@
+# Im Upload-Ordner niemals Skripte ausführen - nur Videos und Bilder ausliefern
+<FilesMatch "\.(php\d?|phtml|phar|pht|phps|cgi|pl|py|sh|shtml|html?|svg|js)$">
+    Require all denied
+</FilesMatch>
+
+# Dateien nie als etwas anderes interpretieren, als sie sind
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

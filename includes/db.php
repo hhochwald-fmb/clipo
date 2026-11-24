@@ -14,7 +14,9 @@ try {
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    die("Datenbank-Verbindung fehlgeschlagen: " . $e->getMessage());
+    error_log("Clipo: Datenbank-Verbindung fehlgeschlagen: " . $e->getMessage());
+    http_response_code(503);
+    die("Datenbank-Verbindung fehlgeschlagen. Details stehen im Fehler-Log des Servers.");
 }
 
 // Konfiguration aus Umgebungsvariablen, aber Datenbank noch leer -> erst Setup ausführen

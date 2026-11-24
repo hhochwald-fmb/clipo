@@ -1,7 +1,6 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/session.php';
+clipoStartSession();
 
 // Session Timeout Logic (15 Minutes)
 $timeout = 15 * 60; 
@@ -12,6 +11,21 @@ if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 
     exit;
 }
 $_SESSION['last_activity'] = time();
+
+// Rolle bei jedem Aufruf frisch aus der Datenbank holen: Gelöschte Benutzer
+// fliegen sofort raus, geänderte Rollen gelten sofort.
+if (isset($_SESSION['user_id']) && isset($pdo)) {
+    $stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $current_role = $stmt->fetchColumn();
+    if ($current_role === false) {
+        session_unset();
+        session_destroy();
+        header("Location: login.php");
+        exit;
+    }
+    $_SESSION['user_role'] = $current_role;
+}
 
 function isLoggedIn() {
     return isset($_SESSION['user_id']);
