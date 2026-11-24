@@ -7,74 +7,24 @@ require_once 'includes/auth.php';
 
 requireAdmin();
 
-$current_version = defined('DB_VERSION') ? DB_VERSION : '1.0';
-$target_version = '1.5'; // Updated to 1.5
+// Die Migrationen laufen nach einem Update normalerweise automatisch (includes/migrations.php).
+// Diese Seite erlaubt, sie bei Bedarf von Hand anzustoßen.
+$current_version = getSetting('db_version', '1.5');
+$target_version = CLIPO_VERSION;
 
 $logs = [];
 $error = '';
 $success = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
+    checkCsrf();
     try {
-        // Add user columns if not exists
-        try { $pdo->exec("ALTER TABLE users ADD COLUMN email VARCHAR(255) AFTER username"); } catch(Exception $e) {}
-        try { $pdo->exec("ALTER TABLE users ADD COLUMN display_name VARCHAR(100) AFTER password"); } catch(Exception $e) {}
-        try { $pdo->exec("ALTER TABLE users ADD COLUMN profile_image VARCHAR(255) AFTER display_name"); } catch(Exception $e) {}
-        try { $pdo->exec("ALTER TABLE users ADD COLUMN reset_token VARCHAR(100) AFTER role"); } catch(Exception $e) {}
-        try { $pdo->exec("ALTER TABLE users ADD COLUMN reset_expiry DATETIME AFTER reset_token"); } catch(Exception $e) {}
-
-        $logs[] = "Datenbank-Schema: User-Tabelle um Email und Reset-Token erweitert.";
-
-        // Step 1: Migration for viewers
-        $pdo->exec("UPDATE users SET role = 'manager' WHERE role = 'viewer'");
-        $logs[] = "Migration: Viewer-Rollen zu Managern umgewandelt.";
-
-        // Step 2: Ensure settings table exists
-        $pdo->exec("CREATE TABLE IF NOT EXISTS settings (
-            setting_key VARCHAR(50) PRIMARY KEY,
-            setting_value TEXT
-        ) ENGINE=InnoDB");
-        $logs[] = "Prüfung: Settings-Tabelle bereit.";
-
-        // Step 2: Seed default settings
-        $defaults = [
-            'primary_color' => '#f39200',
-            'secondary_color' => '#4a5c66',
-            'videos_per_page' => '12',
-            'footer_email' => 'hochwald@lmz-bw.de',
-            'public_access' => '0',
-            'site_name' => 'Stadtmedienzentrum Stuttgart',
-            'impressum_content' => '<h1>Impressum</h1><p>Bearbeite diesen Inhalt im Admin-Bereich.</p>'
-        ];
-        $stmt = $pdo->prepare("INSERT IGNORE INTO settings (setting_key, setting_value) VALUES (?, ?)");
-        foreach ($defaults as $k => $v) {
-            $stmt->execute([$k, $v]);
+        $logs = clipoRunMigrations($pdo);
+        if (!$logs) {
+            $logs[] = "Die Datenbank war bereits aktuell.";
         }
-        $logs[] = "Prüfung: Standard-Einstellungen initialisiert.";
-
-        // Step 3: Check for 'tags' column in 'videos'
-        $stmt = $pdo->query("SHOW COLUMNS FROM videos LIKE 'tags'");
-        if (!$stmt->fetch()) {
-            $pdo->exec("ALTER TABLE videos ADD COLUMN tags VARCHAR(255) AFTER description");
-            $logs[] = "Update: Spalte 'tags' erfolgreich zur Tabelle 'videos' hinzugefügt.";
-        } else {
-            $logs[] = "Status: Spalte 'tags' bereits vorhanden.";
-        }
-
-        // Step 4: Update Version in config.php
-        if (version_compare($current_version, $target_version, '<')) {
-            $config_path = __DIR__ . '/config.php';
-            if (file_exists($config_path)) {
-                $config_content = file_get_contents($config_path);
-                // Handle both quoted and unquoted version numbers in config.php
-                $config_content = preg_replace("/define\('DB_VERSION', (.*)\);/", "define('DB_VERSION', '$target_version');", $config_content);
-                file_put_contents($config_path, $config_content);
-                $logs[] = "System: Versionsnummer in config.php auf v$target_version aktualisiert.";
-            }
-        }
-
+        $logs[] = "Datenbank-Stand: v" . CLIPO_VERSION;
         $success = true;
-        
     } catch (PDOException $e) {
         $error = "Datenbank-Fehler: " . $e->getMessage();
     }
@@ -107,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
     <div class="container">
         <div class="update-box card">
             <h1>System Update</h1>
-            <p>Aktuelle Version: <strong>v<?php echo $current_version; ?></strong> &rarr; Ziel: <strong>v<?php echo $target_version; ?></strong></p>
+            <p>Aktuelle Version: <strong>v<?php echo htmlspecialchars($current_version); ?></strong> &rarr; Ziel: <strong>v<?php echo htmlspecialchars($target_version); ?></strong></p>
 
             <?php if ($error): ?>
                 <div class="alert alert-danger"><?php echo $error; ?></div>
@@ -117,6 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
                 <div id="start-view" style="text-align: center; padding: 40px 0;">
                     <p style="margin-bottom: 30px;">Das System prüft alle Datenbank-Tabellen und skripte auf Aktualität.</p>
                     <form method="POST" onsubmit="startUpdate();">
+                        <?php echo csrfField(); ?>
                         <input type="hidden" name="start_update" value="1">
                         <button type="submit" class="btn">Update jetzt starten</button>
                     </form>

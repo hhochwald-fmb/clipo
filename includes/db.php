@@ -22,3 +22,7 @@ if (!file_exists(CLIPO_CONFIG_FILE) && !$pdo->query("SHOW TABLES LIKE 'users'")-
     header("Location: setup.php");
     exit;
 }
+
+// Nach einem Update: Datenbank automatisch auf den Stand des Codes bringen
+require_once __DIR__ . '/migrations.php';
+clipoAutoMigrate($pdo);

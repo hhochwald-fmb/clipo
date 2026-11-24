@@ -1,6 +1,6 @@
     <footer>
         <p>
-            &copy; <?php echo date('Y'); ?> Clipo v<?php echo defined('DB_VERSION') ? DB_VERSION : '1.0'; ?> | 
+            &copy; <?php echo date('Y'); ?> Clipo v<?php echo htmlspecialchars(CLIPO_VERSION); ?> | 
             Ein Projekt des <a href="https://www.smz-stuttgart.de" target="_blank">SMZ Stuttgart</a>
         </p>
         <p style="margin-top: 5px;">

@@ -87,3 +87,33 @@ Im Docker-Betrieb liest Clipo die Zugangsdaten direkt aus diesen Umgebungsvariab
 `setup.php` ist gesperrt, sobald ein Admin existiert – außer man ist als Admin angemeldet. Notfall (Admin-Passwort vergessen): in `docker-compose.yml` beim Service `app` `CLIPO_SETUP_UNLOCK: "1"` ergänzen, `docker compose up -d`, Setup ausführen, Zeile wieder entfernen.
 
 Passwort-Reset-Links landen lokal (ohne Mailserver) im Log: `docker compose logs -f app`
+
+---
+
+## Neue Version veröffentlichen (Online-Update)
+
+Installationen auf normalem Webhosting holen sich Updates selbst: **Admin → Updates → „Nach Updates suchen“**.
+Clipo fragt dabei das neueste **GitHub-Release** von `hhochwald-fmb/clipo` ab und installiert es auf Knopfdruck.
+
+So veröffentlichst du eine neue Version:
+
+1. Versionsnummer in der Datei `VERSION` erhöhen (z. B. `1.6.0` → `1.6.1`)
+2. Committen und pushen
+3. Release anlegen – der Tag muss zur Datei `VERSION` passen:
+
+```bash
+gh release create v1.6.1 --title "Clipo 1.6.1" --notes "Was ist neu …"
+```
+
+Ein extra ZIP ist nicht nötig: Clipo nimmt das automatische Quellcode-ZIP des Tags.
+(Hängt man ein Paket `clipo-x.y.z.zip` an das Release an, wird stattdessen dieses verwendet.)
+
+Was beim Update passiert:
+- Vorher wird ein Backup der ersetzten Dateien in `storage/backups/` angelegt
+- `config.php`, `uploads/` und `storage/` werden **nie** überschrieben
+- Datenbank-Änderungen laufen beim nächsten Seitenaufruf automatisch
+
+**Datenbank ändern:** neuen Schritt in `includes/migrations.php` (unten bei „Neue Schritte hier anhängen“) ergänzen.
+Jeder Schritt muss mehrfach laufen dürfen (erst prüfen, ob Spalte/Tabelle schon existiert).
+
+Hinweis: Installationen, die per `git clone` auf dem Server liegen (und Docker), aktualisiert man weiter mit `git pull` – der Admin-Bereich zeigt das dann auch an.

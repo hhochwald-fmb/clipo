@@ -13,3 +13,7 @@ uploads/*
 
 # Release-Archiv
 clipo_release.zip
+
+# Update-Backups und temporäre Downloads
+storage/*
+!storage/.htaccess

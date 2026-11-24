@@ -5,9 +5,12 @@
 RedirectMatch 404 /\.(git|docker|claude)
 
 # Doku, Docker-Dateien und Vorlagen
-<FilesMatch "(\.md$|^Dockerfile$|^docker-compose\.ya?ml$|^config\.sample\.php$)">
+<FilesMatch "(\.md$|^VERSION$|^Dockerfile$|^docker-compose\.ya?ml$|^config\.sample\.php$)">
     Require all denied
 </FilesMatch>
 
 # includes/ enthält nur Bausteine, die von anderen Seiten geladen werden
 RedirectMatch 404 ^(.*/)?includes/
+
+# storage/ enthält Update-Backups (komplette Programmdateien)
+RedirectMatch 404 ^(.*/)?storage/

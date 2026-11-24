@@ -4,3 +4,5 @@ uploads/*.jpg
 uploads/*.png
 clipo_release.zip
 .git
+storage/backups
+storage/tmp

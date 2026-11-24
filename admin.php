@@ -3,10 +3,74 @@ require_once 'includes/db.php';
 require_once 'includes/auth.php';
 
 requireAdmin();
+require_once 'includes/updater.php';
 
 $active_tab = $_GET['tab'] ?? 'users';
 $message = '';
 $error = '';
+
+// Meldungen aus einer Weiterleitung (z. B. nach einem Update)
+if (!empty($_SESSION['flash'])) {
+    if ($_SESSION['flash']['type'] === 'success') {
+        $message = $_SESSION['flash']['text'];
+    } else {
+        $error = $_SESSION['flash']['text'];
+    }
+    unset($_SESSION['flash']);
+}
+
+// ---------- Online-Updates ----------
+$latest = null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['check_update'])) {
+    checkCsrf();
+    $active_tab = 'updates';
+    try {
+        $latest = clipoCheckLatest();
+    } catch (Throwable $e) {
+        $error = 'Update-Prüfung fehlgeschlagen: ' . $e->getMessage();
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_update_repo'])) {
+    checkCsrf();
+    $active_tab = 'updates';
+    $repo = trim($_POST['update_repo'] ?? '');
+    if ($repo !== '' && !preg_match('#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#', $repo)) {
+        $error = 'Repository bitte im Format „besitzer/name“ angeben.';
+    } else {
+        setSetting('update_repo', $repo);
+        $message = 'Update-Repository gespeichert.';
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['install_update']) || isset($_POST['upload_update']))) {
+    checkCsrf();
+    $zipPath = null;
+    $isDownload = isset($_POST['install_update']);
+    try {
+        if ($isDownload) {
+            $zipPath = clipoDownloadLatest();
+        } else {
+            $f = $_FILES['package'] ?? null;
+            if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file($f['tmp_name'])) {
+                throw new RuntimeException('Bitte eine Update-Datei (ZIP) auswählen. Der Server erlaubt Uploads bis ' . ini_get('upload_max_filesize') . '.');
+            }
+            $zipPath = $f['tmp_name'];
+        }
+        $version = clipoApplyUpdateZip($zipPath);
+        $_SESSION['flash'] = ['type' => 'success', 'text' => "Update auf Version $version installiert. Datenbank-Änderungen wurden automatisch angewendet."];
+    } catch (Throwable $e) {
+        $_SESSION['flash'] = ['type' => 'error', 'text' => 'Update fehlgeschlagen: ' . $e->getMessage()];
+    } finally {
+        if ($isDownload && $zipPath) {
+            @unlink($zipPath);
+        }
+    }
+    // Der nächste Aufruf läuft mit dem neuen Code und führt die Migrationen automatisch aus
+    header('Location: admin.php?tab=updates');
+    exit;
+}
 
 // Handle Settings Update
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_settings'])) {
@@ -140,6 +204,7 @@ include 'includes/header.php';
             <a href="?tab=content" class="<?php echo $active_tab == 'content' ? 'active' : ''; ?>">Inhalt</a>
             <a href="?tab=system" class="<?php echo $active_tab == 'system' ? 'active' : ''; ?>">System-Info</a>
             <a href="?tab=maintenance" class="<?php echo $active_tab == 'maintenance' ? 'active' : ''; ?>">Wartung</a>
+            <a href="?tab=updates" class="<?php echo $active_tab == 'updates' ? 'active' : ''; ?>">Updates</a>
         </div>
 
         <!-- Users Tab -->
@@ -303,8 +368,8 @@ include 'includes/header.php';
                 <div style="margin-top: 30px; border: 2px dashed #e2e8f0; border-radius: 12px; padding: 30px; text-align: center;">
                     <div style="font-size: 32px; margin-bottom: 10px;">⚙️</div>
                     <h3 style="margin-top: 0;">Datenbank & System</h3>
-                    <p style="font-size: 0.95rem; color: #64748b; margin-bottom: 20px;">Falls du neue Dateien hochgeladen hast, muss eventuell die Datenbank aktualisiert werden.</p>
-                    <a href="update.php" class="btn btn-secondary">System-Update / Migration ausführen</a>
+                    <p style="font-size: 0.95rem; color: #64748b; margin-bottom: 20px;">Neue Clipo-Versionen installierst du im Reiter <a href="?tab=updates">Updates</a>. Die Datenbank wird danach automatisch angepasst – von Hand nur nötig, wenn dabei etwas schiefging.</p>
+                    <a href="update.php" class="btn btn-secondary">Datenbank-Migration von Hand ausführen</a>
                 </div>
             </div>
         </div>
@@ -349,9 +414,116 @@ include 'includes/header.php';
                 <?php endif; ?>
             </div>
         </div>
+
+        <!-- Updates Tab -->
+        <?php
+        $update_repo = clipoUpdateRepo();
+        $backups = clipoBackups();
+        $zip_ok = class_exists('ZipArchive');
+        ?>
+        <div class="tab-content <?php echo $active_tab == 'updates' ? 'active' : ''; ?>">
+            <div style="display: grid; grid-template-columns: 3fr 2fr; gap: 30px;">
+                <div class="card">
+                    <h2 style="margin-top: 0;">Update einspielen</h2>
+                    <p style="color: #64748b;">Installierte Version: <strong>v<?php echo htmlspecialchars(CLIPO_VERSION); ?></strong></p>
+
+                    <?php if (clipoIsGitCheckout()): ?>
+                        <div class="alert alert-info" style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;">
+                            Diese Installation ist ein Git-Checkout. Aktualisiere sie am besten auf der Kommandozeile mit <code>git pull</code>
+                            (bei Docker danach <code>docker compose up -d --build</code>).
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (!$zip_ok): ?>
+                        <div class="alert alert-danger">Die PHP-Erweiterung „zip“ fehlt auf dem Server – Online-Updates sind nicht möglich. Bitte die Dateien per FTP einspielen.</div>
+                    <?php endif; ?>
+
+                    <p>Online-Updates aus <code><?php echo htmlspecialchars($update_repo ?: '–'); ?></code></p>
+                    <form method="POST">
+                        <?php echo csrfField(); ?>
+                        <button type="submit" name="check_update" value="1" class="btn btn-secondary">🔄 Nach Updates suchen</button>
+                    </form>
+
+                    <?php if ($latest): ?>
+                        <?php if ($latest['newer']): ?>
+                            <div class="alert alert-success" style="margin-top: 20px;">
+                                <strong>Version <?php echo htmlspecialchars($latest['version']); ?> ist verfügbar.</strong>
+                                <?php if ($latest['name']): ?><div style="margin-top: 4px;"><?php echo htmlspecialchars($latest['name']); ?></div><?php endif; ?>
+                                <?php if ($latest['notes']): ?>
+                                    <pre style="white-space: pre-wrap; font-size: 0.85rem; margin: 10px 0; font-family: inherit;"><?php echo htmlspecialchars($latest['notes']); ?></pre>
+                                <?php endif; ?>
+                                <?php if ($zip_ok): ?>
+                                    <form method="POST" style="margin-top: 10px;" onsubmit="return clipoStartUpdate(this, 'Update auf Version <?php echo htmlspecialchars($latest['version'], ENT_QUOTES); ?> jetzt installieren? Vorher wird automatisch ein Backup der Programmdateien angelegt.');">
+                                        <?php echo csrfField(); ?>
+                                        <button type="submit" name="install_update" value="1" class="btn">⬇️ Jetzt installieren</button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="alert alert-success" style="margin-top: 20px;">
+                                ✅ Du hast die neueste Version (v<?php echo htmlspecialchars($latest['version']); ?>).
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+                    <h3>Update-Paket hochladen (ZIP)</h3>
+                    <form method="POST" enctype="multipart/form-data" onsubmit="return clipoStartUpdate(this, 'Update-Paket jetzt installieren? Vorher wird automatisch ein Backup der Programmdateien angelegt.');">
+                        <?php echo csrfField(); ?>
+                        <div class="form-group">
+                            <input type="file" name="package" accept=".zip" required>
+                            <p style="font-size: 0.85rem; color: #64748b; margin-top: 8px;">
+                                Ein Clipo-Release als ZIP (z. B. von GitHub „Source code (zip)“).
+                                Konfiguration, Datenbank und Videos bleiben erhalten. Max. Upload-Größe des Servers: <?php echo htmlspecialchars(ini_get('upload_max_filesize')); ?>
+                            </p>
+                        </div>
+                        <button type="submit" name="upload_update" value="1" class="btn" <?php echo $zip_ok ? '' : 'disabled'; ?>>⬆️ Hochladen &amp; installieren</button>
+                    </form>
+
+                    <?php if ($backups): ?>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                        <h3>Backups</h3>
+                        <ul style="font-size: 0.9rem; color: #64748b; padding-left: 20px;">
+                            <?php foreach (array_slice($backups, 0, 5) as $b): ?>
+                                <li><?php echo htmlspecialchars($b['name']); ?> (<?php echo formatBytes($b['size'], 0); ?>)</li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <p style="font-size: 0.85rem; color: #64748b;">Liegen im Ordner <code>storage/backups/</code>.</p>
+                    <?php endif; ?>
+                </div>
+
+                <div class="card">
+                    <h3 style="margin-top: 0;">Einstellungen</h3>
+                    <form method="POST">
+                        <?php echo csrfField(); ?>
+                        <div class="form-group">
+                            <label>GitHub-Repository für Online-Updates</label>
+                            <input type="text" name="update_repo" value="<?php echo htmlspecialchars(getSetting('update_repo', '')); ?>" placeholder="<?php echo CLIPO_DEFAULT_REPO; ?>">
+                            <p style="font-size: 0.85rem; color: #64748b; margin-top: 8px;">
+                                Leer lassen = offizielles Repository (<?php echo CLIPO_DEFAULT_REPO; ?>). Nur ändern, wenn du eine eigene Variante pflegst.
+                            </p>
+                        </div>
+                        <button type="submit" name="save_update_repo" value="1" class="btn">Speichern</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
+        function clipoStartUpdate(form, question) {
+            if (!confirm(question)) return false;
+            var btn = form.querySelector('button[type=submit]');
+            // Button-Wert trotzdem mitschicken, obwohl er gleich deaktiviert wird
+            var hidden = document.createElement('input');
+            hidden.type = 'hidden'; hidden.name = btn.name; hidden.value = btn.value;
+            form.appendChild(hidden);
+            btn.disabled = true;
+            btn.textContent = 'Update läuft … bitte warten';
+            return true;
+        }
+
         function execCmd(command, value = null) {
             document.execCommand(command, false, value);
         }

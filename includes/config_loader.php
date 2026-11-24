@@ -4,7 +4,8 @@
 // So überlebt die Konfiguration einen Neubau des Containers.
 
 define('CLIPO_CONFIG_FILE', dirname(__DIR__) . '/config.php');
-define('CLIPO_VERSION', '1.5');
+// Die Programmversion steht in der Datei VERSION (wird von Online-Updates mit ersetzt)
+define('CLIPO_VERSION', trim((string) @file_get_contents(dirname(__DIR__) . '/VERSION')) ?: '1.5');
 
 function clipoLoadConfig() {
     if (file_exists(CLIPO_CONFIG_FILE)) {
