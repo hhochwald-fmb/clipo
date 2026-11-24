@@ -465,9 +465,9 @@ include 'includes/header.php';
                     <p style="color: #64748b;">Installierte Version: <strong>v<?php echo htmlspecialchars(CLIPO_VERSION); ?></strong></p>
 
                     <?php if (clipoIsGitCheckout()): ?>
-                        <div class="alert alert-info" style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;">
-                            Diese Installation ist ein Git-Checkout. Aktualisiere sie am besten auf der Kommandozeile mit <code>git pull</code>
-                            (bei Docker danach <code>docker compose up -d --build</code>).
+                        <div class="alert alert-info" style="background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; display: block; font-weight: 400; font-size: 0.9rem;">
+                            <div>Im Clipo-Ordner liegt ein Git-Ordner (<code>.git</code>). Wurde Clipo per <code>git clone</code> installiert, aktualisierst du es besser mit <code>git pull</code>, damit Git und die Dateien nicht auseinanderlaufen.</div>
+                            <div style="margin-top: 6px;">Wurde Clipo per FTP/SFTP hochgeladen, kannst du diesen Hinweis ignorieren und den Knopf unten nutzen. Den Ordner <code>.git</code> kannst du dann auch löschen.</div>
                         </div>
                     <?php endif; ?>
 
@@ -483,7 +483,7 @@ include 'includes/header.php';
 
                     <?php if ($latest): ?>
                         <?php if ($latest['newer']): ?>
-                            <div class="alert alert-success" style="margin-top: 20px;">
+                            <div class="alert alert-success" style="margin-top: 20px; display: block;">
                                 <strong>Version <?php echo htmlspecialchars($latest['version']); ?> ist verfügbar.</strong>
                                 <?php if ($latest['name']): ?><div style="margin-top: 4px;"><?php echo htmlspecialchars($latest['name']); ?></div><?php endif; ?>
                                 <?php if ($latest['notes']): ?>
